@@ -190,7 +190,8 @@ Why these quality attributes:
 - By improving **agility**, **modifiability**, **testability** of the system we can lower the TTM of our features
 - Higher **maintainability**, **modularity**, **simplicity** help to prove business hypotheses faster, and discard them with less impact for the system.
 
-Here is the comparison chart of architectural styles and their quality attributes:
+Here is the comparison chart of architectural styles and their quality attributes:  
+*Sorry for the typos in the image, the picture is not mine >.<*
 ![styles.jpg](styles.jpg)
 
 #### Modelled load profile
