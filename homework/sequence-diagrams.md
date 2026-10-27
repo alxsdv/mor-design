@@ -43,10 +43,10 @@ sequenceDiagram
     LazyStretch->>Customer: Invoice (email / account page)
 ```
 
-## Scenario 2: On subscription renewal (or at another billing event) the Recurring Fee must be charged from the Buyer
+## Scenario 2: On subscription renewal (or at another billing event) the Recurring Fee must be charged to the Buyer
 
 - The Merchant manages the subscription and its billing cycles
-- The Merchant initiates charging recurring fee for the subscription
+- The Merchant initiates charging the recurring fee for the subscription
 - MoR is responsible for calculating taxes and collecting money
 - The settled payment is registered in the ledger
 - The same settled payment is stored as a taxable transaction, for the tax return
@@ -128,7 +128,7 @@ sequenceDiagram
 ## Scenario 4: Payout to the Merchant
 
 - MoR obtains the Merchant's balance from the ledger
-- Proceeds are paid out to Merchant's USD account through our Wise account
+- Proceeds are paid out to the Merchant's USD account through our Wise account
 - Successful payout is recorded in the ledger, updating the Merchant's balance
 
 ```mermaid
@@ -160,7 +160,7 @@ sequenceDiagram
 ## Scenario 5: File and remit EU taxes for the quarter
 
 - At period end, taxable transactions are added up per country and optionally rated, to prepare the tax return
-- MoR is responsible to file the EU-taxes to the authorities
+- MoR is responsible for filing EU taxes with the authorities
 - Taxes are remitted from the MoR account, and the remittance is recorded in the ledger
 
 ```mermaid
