@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Conceptual Data Model · MoR System Design</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="topbar">
+  <a class="brand" href="../design.html">MoR System Design</a>
+  <a class="md-link" href="../design.md" title="The same document as Markdown">View as Markdown</a>
+</header>
+<div class="layout">
+<nav class="sidebar" aria-label="Document sections">
+<ol class="pages">
+<li><a href="../design.html"><span class="num">01</span>Overview</a></li>
+<li><a href="../design/bounded-contexts.html"><span class="num">02</span>Event Storming &amp; Bounded Contexts</a></li>
+<li class="active"><a href="../design/data-model.html" aria-current="page"><span class="num">03</span>Conceptual Data Model</a></li>
+<li><a href="../design/communications.html"><span class="num">04</span>Communications Diagram</a></li>
+<li><a href="../design/architecture.html"><span class="num">05</span>Quality Attributes &amp; Architectural Style</a></li>
+<li><a href="../design/deployment.html"><span class="num">06</span>Deployment Diagram</a></li>
+<li><a href="../design/implementation.html"><span class="num">07</span>Implementation Details</a></li>
+<li class="group">Appendix</li><li><a href="../design/sequence-diagrams.html"><span class="num">A</span>Sequence Diagrams</a></li>
+</ol>
+</nav>
+<main class="content">
+<p class="eyebrow">MoR System Design</p>
+<h1 id="conceptual-data-model">Conceptual Data Model</h1>
+<p>It is in fact conceptual - its goal is to show the main domain entities that a certain Bounded Context requires for its business logic.<br>This diagram is <strong>not</strong> intended to represent the actual DB schema - it lacks many of the technical aspects (ids, timestamps, foreign keys, indexes, etc).
+The main goal is, again, to represent communications - this time based on the data structures (system <em>form</em>).</p>
+<figure class="figure"><a href="../models-DataModel.png" target="_blank" rel="noopener" title="Open full size"><img src="../models-DataModel.png" alt="models-DataModel.png" loading="lazy"></a><figcaption>models-DataModel.png <a href="../models-DataModel.png" target="_blank" rel="noopener">Open full size ↗&#xFE0E;</a></figcaption></figure>
+<p>In my example there are almost no communications between contexts at the data model level.<br>Mostly because I suppose that enough information can be transmitted in the payload of the business events, and a separate data model streaming is not necessary here, especially with the chosen architectural style (more on that below).  </p>
+<p>The only data structure that needs to get across context boundaries is <code>TaxCalculation</code>.<br>When <strong>Payments Orchestration</strong> publishes the &quot;Payment Captured&quot; event, it provides the <code>taxCalculationId</code> that was used to create this payment. The <strong>Tax Compliance</strong> context then needs to request the calculation from the <strong>Tax Engine</strong> context to convert it into a transaction.  </p>
+
+<nav class="pager" aria-label="Pages"><a class="prev" href="../design/bounded-contexts.html"><span>Previous</span>Event Storming &amp; Bounded Contexts</a><a class="next" href="../design/communications.html"><span>Next</span>Communications Diagram</a></nav>
+</main>
+</div>
+</body>
+</html>

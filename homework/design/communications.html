@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Communications Diagram · MoR System Design</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="topbar">
+  <a class="brand" href="../design.html">MoR System Design</a>
+  <a class="md-link" href="../design.md" title="The same document as Markdown">View as Markdown</a>
+</header>
+<div class="layout">
+<nav class="sidebar" aria-label="Document sections">
+<ol class="pages">
+<li><a href="../design.html"><span class="num">01</span>Overview</a></li>
+<li><a href="../design/bounded-contexts.html"><span class="num">02</span>Event Storming &amp; Bounded Contexts</a></li>
+<li><a href="../design/data-model.html"><span class="num">03</span>Conceptual Data Model</a></li>
+<li class="active"><a href="../design/communications.html" aria-current="page"><span class="num">04</span>Communications Diagram</a></li>
+<li><a href="../design/architecture.html"><span class="num">05</span>Quality Attributes &amp; Architectural Style</a></li>
+<li><a href="../design/deployment.html"><span class="num">06</span>Deployment Diagram</a></li>
+<li><a href="../design/implementation.html"><span class="num">07</span>Implementation Details</a></li>
+<li class="group">Appendix</li><li><a href="../design/sequence-diagrams.html"><span class="num">A</span>Sequence Diagrams</a></li>
+</ol>
+</nav>
+<main class="content">
+<p class="eyebrow">MoR System Design</p>
+<h1 id="communications-diagram">Communications Diagram</h1>
+<p>This diagram combines communications from the Event Storming diagram, and the Conceptual Data Model, and focuses on the communications.</p>
+<figure class="figure"><a href="../models-Communications.png" target="_blank" rel="noopener" title="Open full size"><img src="../models-Communications.png" alt="models-Communications.png" loading="lazy"></a><figcaption>models-Communications.png <a href="../models-Communications.png" target="_blank" rel="noopener">Open full size ↗&#xFE0E;</a></figcaption></figure>
+<p>All communications can be divided by the <em>consistency type</em>: <em>strong</em> consistency vs <em>eventual</em> consistency.  </p>
+<p>Asynchronous communications (that have <em>eventual</em> consistency type) typically help to improve the system&#39;s performance, scalability, availability, and lower coupling between Bounded Contexts - this is why I&#39;ve tried to choose them where applicable.</p>
+<p>The only communication that requires <strong>strong</strong> consistency is the request from <strong>Merchants Payouts</strong> to the <strong>Ledger</strong> to reserve the Merchant&#39;s balance for the payout.</p>
+<p>The communication to &quot;Lookup TaxCalculation objects&quot; would normally be asynchronous data streaming - but taking into account the modelled load for the system I decided to just request it synchronously. If we had chosen to stream all of the calculations, we would have a lot of unused calculations streamed into other Bounded Contexts, because not all of the calculations will actually be paid for.</p>
+
+<nav class="pager" aria-label="Pages"><a class="prev" href="../design/data-model.html"><span>Previous</span>Conceptual Data Model</a><a class="next" href="../design/architecture.html"><span>Next</span>Quality Attributes &amp; Architectural Style</a></nav>
+</main>
+</div>
+</body>
+</html>

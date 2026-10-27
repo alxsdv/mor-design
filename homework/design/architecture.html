@@ -1,0 +1,117 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Quality Attributes &amp; Architectural Style · MoR System Design</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="topbar">
+  <a class="brand" href="../design.html">MoR System Design</a>
+  <a class="md-link" href="../design.md" title="The same document as Markdown">View as Markdown</a>
+</header>
+<div class="layout">
+<nav class="sidebar" aria-label="Document sections">
+<ol class="pages">
+<li><a href="../design.html"><span class="num">01</span>Overview</a></li>
+<li><a href="../design/bounded-contexts.html"><span class="num">02</span>Event Storming &amp; Bounded Contexts</a></li>
+<li><a href="../design/data-model.html"><span class="num">03</span>Conceptual Data Model</a></li>
+<li><a href="../design/communications.html"><span class="num">04</span>Communications Diagram</a></li>
+<li class="active"><a href="../design/architecture.html" aria-current="page"><span class="num">05</span>Quality Attributes &amp; Architectural Style</a><ol class="toc"><li><a href="#definitions-of-the-selected-quality-attributes">Definitions of the selected quality attributes</a></li><li><a href="#modelled-load-profile">Modelled load profile</a></li><li><a href="#system-architectural-style">System Architectural Style</a></li></ol></li>
+<li><a href="../design/deployment.html"><span class="num">06</span>Deployment Diagram</a></li>
+<li><a href="../design/implementation.html"><span class="num">07</span>Implementation Details</a></li>
+<li class="group">Appendix</li><li><a href="../design/sequence-diagrams.html"><span class="num">A</span>Sequence Diagrams</a></li>
+</ol>
+</nav>
+<main class="content">
+<p class="eyebrow">MoR System Design</p>
+<h1 id="quality-attributes-architectural-style">Quality Attributes &amp; Architectural Style</h1>
+<p>Quality Attributes are architectural characteristics that a system (or an individual Bounded Context) may have.  </p>
+<p>If a particular Bounded Context requires quality attributes different from other contexts (for example, an asymmetrically higher load, which means higher scalability/elasticity requirements), this may be a signal to extract it into a separate service (deployable).</p>
+<p>Below is a list of quality attributes that I&#39;ve chosen for the system, and their definitions from Arc42:</p>
+<p><a href="https://quality.arc42.org/qualities/" target="_blank" rel="noopener">https://quality.arc42.org/qualities/</a></p>
+<h2 id="definitions-of-the-selected-quality-attributes">Definitions of the selected quality attributes<a class="anchor" href="#definitions-of-the-selected-quality-attributes" aria-label="Link to this section">#</a></h2>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Quality Attribute</th>
+<th>Definition</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><a href="https://quality.arc42.org/qualities/agility" target="_blank" rel="noopener"><strong>Agility</strong></a></td>
+<td>A system can rapidly be changed (as opposed to flexibility, which means that a system can easily be changed.)</td>
+</tr>
+<tr>
+<td><a href="https://quality.arc42.org/qualities/availability" target="_blank" rel="noopener"><strong>Availability</strong></a></td>
+<td>Capability of a product to be accessible and operational when required for use. <br> Essentially, information and systems should be up and running when needed.</td>
+</tr>
+<tr>
+<td><a href="https://quality.arc42.org/qualities/testability" target="_blank" rel="noopener"><strong>Testability</strong></a></td>
+<td>Capability of a product to enable an objective and feasible test to be designed and performed to determine whether a requirement is met.</td>
+</tr>
+<tr>
+<td><a href="https://quality.arc42.org/qualities/modularity" target="_blank" rel="noopener"><strong>Modularity</strong></a></td>
+<td>Capability of a product to limit changes to one component from affecting other components. <br> Modularity implies that the product will be composed of discrete modules or components with cohesive content and minimal coupling to other modules or components.</td>
+</tr>
+<tr>
+<td><a href="https://quality.arc42.org/qualities/maintainability" target="_blank" rel="noopener"><strong>Maintainability</strong></a></td>
+<td>Maintainability is concerned with modifications after the software baseline is established. <br> The goal of a maintenance activity is to correct defects, adapt to changing environments, or improve a system&#39;s future maintainability or other quality attributes.</td>
+</tr>
+<tr>
+<td><a href="https://quality.arc42.org/qualities/modifiability" target="_blank" rel="noopener"><strong>Modifiability</strong></a></td>
+<td>Capability of a system to be effectively and efficiently modified without introducing defects or degrading existing product quality</td>
+</tr>
+<tr>
+<td><a href="https://quality.arc42.org/qualities/reliability" target="_blank" rel="noopener"><strong>Reliability</strong></a></td>
+<td>Capability of a product to perform specified functions under specified conditions for a specified period of time without interruptions and failures.</td>
+</tr>
+<tr>
+<td><a href="https://quality.arc42.org/qualities/scalability" target="_blank" rel="noopener"><strong>Scalability</strong></a></td>
+<td>Capability of a product to handle growing or shrinking workloads or the ease with which the product&#39;s capacity can be adapted to handle variability</td>
+</tr>
+<tr>
+<td><a href="https://quality.arc42.org/qualities/simplicity" target="_blank" rel="noopener"><strong>Simplicity</strong></a></td>
+<td>For software, &quot;simple&quot; means easy to read, understand, and correctly modify.</td>
+</tr>
+</tbody></table>
+</div><p>Why these quality attributes:</p>
+<ul>
+<li>By improving <strong>agility</strong>, <strong>modifiability</strong>, <strong>testability</strong> of the system we can lower the TTM of our features</li>
+<li>Higher <strong>maintainability</strong>, <strong>modularity</strong>, <strong>simplicity</strong> help to prove business hypotheses faster, and discard them with less impact on the system.</li>
+</ul>
+<p>Here is a comparison chart of architectural styles and their quality attributes:<br><em>Sorry for the typos in the image, the picture is not mine &gt;.&lt;</em></p>
+<figure class="figure"><a href="../styles.jpg" target="_blank" rel="noopener" title="Open full size"><img src="../styles.jpg" alt="styles.jpg" loading="lazy"></a><figcaption>styles.jpg <a href="../styles.jpg" target="_blank" rel="noopener">Open full size ↗&#xFE0E;</a></figcaption></figure>
+<h2 id="modelled-load-profile">Modelled load profile<a class="anchor" href="#modelled-load-profile" aria-label="Link to this section">#</a></h2>
+<p>For one Merchant &quot;Lazy Stretch&quot;:</p>
+<ul>
+<li>50k EU subscribers on monthly plans<ul>
+<li>~2k payments a day (1.7k renewals, 150 new, retries).</li>
+<li>~2.5k tax calcs a day, +15k HTTP requests, 12k events.<ul>
+<li>0.2 requests per second on average, ~10 per second at peak (nightly renewal batch, January sign-ups).</li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+<h2 id="system-architectural-style">System Architectural Style<a class="anchor" href="#system-architectural-style" aria-label="Link to this section">#</a></h2>
+<p>Mapping of the quality attributes to our Bounded Contexts:</p>
+<figure class="figure"><a href="../models-ArchitecturalStyle.png" target="_blank" rel="noopener" title="Open full size"><img src="../models-ArchitecturalStyle.png" alt="models-ArchitecturalStyle.png" loading="lazy"></a><figcaption>models-ArchitecturalStyle.png <a href="../models-ArchitecturalStyle.png" target="_blank" rel="noopener">Open full size ↗&#xFE0E;</a></figcaption></figure>
+<p>For the overall system I&#39;ve chosen <strong>Modular monolith</strong>:</p>
+<ul>
+<li>It has good values for <strong>maintainability</strong> and <strong>modifiability</strong>, with great <strong>simplicity</strong> and lowest <strong>cost</strong>.</li>
+<li>The modelled load profile allows us to start with a <strong>modulith</strong>, and if the context boundaries are drawn correctly, it will be possible to migrate to <strong>microservices</strong> later when the load increases.</li>
+<li>Most likely, the team working on the system will be small (at least at first), and microservice architecture will not pay off from the start.</li>
+</ul>
+<p>If the modelled load profile is close to reality, then:</p>
+<ul>
+<li>Below about 200 merchants (under 500k calcs a day, about 30 per second at peak) there is no load reason to split.</li>
+<li>Between 1,000 and 2,000 merchants, watch the Tax Calculation p99 latency and decide on the split.</li>
+</ul>
+
+<nav class="pager" aria-label="Pages"><a class="prev" href="../design/communications.html"><span>Previous</span>Communications Diagram</a><a class="next" href="../design/deployment.html"><span>Next</span>Deployment Diagram</a></nav>
+</main>
+</div>
+</body>
+</html>

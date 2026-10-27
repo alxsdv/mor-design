@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Implementation Details · MoR System Design</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="topbar">
+  <a class="brand" href="../design.html">MoR System Design</a>
+  <a class="md-link" href="../design.md" title="The same document as Markdown">View as Markdown</a>
+</header>
+<div class="layout">
+<nav class="sidebar" aria-label="Document sections">
+<ol class="pages">
+<li><a href="../design.html"><span class="num">01</span>Overview</a></li>
+<li><a href="../design/bounded-contexts.html"><span class="num">02</span>Event Storming &amp; Bounded Contexts</a></li>
+<li><a href="../design/data-model.html"><span class="num">03</span>Conceptual Data Model</a></li>
+<li><a href="../design/communications.html"><span class="num">04</span>Communications Diagram</a></li>
+<li><a href="../design/architecture.html"><span class="num">05</span>Quality Attributes &amp; Architectural Style</a></li>
+<li><a href="../design/deployment.html"><span class="num">06</span>Deployment Diagram</a></li>
+<li class="active"><a href="../design/implementation.html" aria-current="page"><span class="num">07</span>Implementation Details</a><ol class="toc"><li><a href="#event-delivery-no-broker">Event delivery (no broker)</a></li><li><a href="#idempotency">Idempotency</a></li><li><a href="#ledger-internals">Ledger internals</a></li><li><a href="#data-ownership-and-retention">Data ownership and retention</a></li><li><a href="#security">Security</a></li></ol></li>
+<li class="group">Appendix</li><li><a href="../design/sequence-diagrams.html"><span class="num">A</span>Sequence Diagrams</a></li>
+</ol>
+</nav>
+<main class="content">
+<h1 id="implementation-details">Implementation Details</h1>
+<h2 id="event-delivery-no-broker">Event delivery (no broker)<a class="anchor" href="#event-delivery-no-broker" aria-label="Link to this section">#</a></h2>
+<ul>
+<li>The event is written to the module&#39;s <code>outbox</code> table in the same DB transaction as the state change.</li>
+<li>A singleton outbox relay (DB lock) delivers events in-process to subscribers; each handler runs in its own transaction.</li>
+<li>The relay, retries and dead-letter handling come from a proven library (framework outbox support or a Postgres-backed queue), not hand-written code.</li>
+<li>At-least-once delivery, ordered per aggregate (payment ID, payout ID); retries with backoff, then a dead-letter table and an alert.</li>
+<li>Events carry an event ID, a schema version and a correlation ID; fields are only added, never changed.</li>
+<li>After a split, the relay publishes to Kafka/RabbitMQ instead; the outbox, inbox and event contracts stay the same.</li>
+</ul>
+<h2 id="idempotency">Idempotency<a class="anchor" href="#idempotency" aria-label="Link to this section">#</a></h2>
+<ul>
+<li>Merchant API: <code>Idempotency-Key</code> per merchant (stored response + request hash, kept for 24 h).</li>
+<li>Business guards: one payment per <code>calculationId</code>; refunds ≤ captured amount (payment row locked).</li>
+<li>PSP and Wise calls use our own IDs as idempotency keys; on a timeout, check the status, never retry blindly.</li>
+<li>Webhooks: unique <code>(provider, provider_event_id)</code>, so duplicates are dropped.</li>
+<li>Internal events: inbox table per module, <code>(consumer, event_id)</code> primary key.</li>
+<li>One <code>TaxTransaction</code>, <code>LedgerTransaction</code> and <code>Invoice</code> per source ID (unique constraints).</li>
+<li>State transitions guarded by the expected current state, so late or duplicate webhooks do nothing.</li>
+<li>Scheduled jobs keyed by <code>(merchant, statement date)</code> and <code>(registration, period)</code>.</li>
+</ul>
+<h2 id="ledger-internals">Ledger internals<a class="anchor" href="#ledger-internals" aria-label="Link to this section">#</a></h2>
+<ul>
+<li>Double-entry: debits = credits per currency, checked on every post.</li>
+<li>Append-only: no <code>UPDATE</code>/<code>DELETE</code> grants; corrections are reversal entries.</li>
+<li>Amounts as integer minor units with a currency; the Ledger never rounds, it posts the tax snapshot amounts.</li>
+<li>Accounts keyed by <code>(Type, Currency, Merchant, Country)</code>; entries dated by when the money moved, not the tax point.</li>
+<li>Balances derived from entries; the cached balance row is updated in the same transaction and checked nightly.</li>
+<li>Reserve for payout: one DB transaction with <code>SELECT ... FOR UPDATE</code> on the merchant&#39;s balance row, so concurrent refunds and payouts are serialized.</li>
+</ul>
+<h2 id="data-ownership-and-retention">Data ownership and retention<a class="anchor" href="#data-ownership-and-retention" aria-label="Link to this section">#</a></h2>
+<ul>
+<li>One schema and one DB role per module; no cross-schema reads or foreign keys.</li>
+<li>Modules talk only through module APIs and events; events carry snapshots.</li>
+<li>10-year retention for tax transactions, evidence, returns, invoices and the ledger (OSS, VAT Directive Art. 369).</li>
+<li>Unpaid tax calculations kept for 90 days (monthly partitions, then dropped).</li>
+<li>Invoice PDFs and filed returns in object storage with Object Lock.</li>
+<li>Buyer personal data kept in a few known places only (Tax Engine, Tax Compliance, Payments, Invoicing); none in logs.</li>
+<li>GDPR erasure: immediately delete what isn&#39;t legally required; tax records stay until their retention ends.</li>
+</ul>
+<h2 id="security">Security<a class="anchor" href="#security" aria-label="Link to this section">#</a></h2>
+<ul>
+<li>Gateway: TLS, authN (API keys / OAuth client credentials), rate limits per merchant; MoR Core accepts traffic only from the gateway.</li>
+<li>AuthZ in the modules: every query is scoped by the merchant ID from the auth context.</li>
+<li>Amounts always come from our own <code>TaxCalculation</code>; a signed quote token (JWS + JWKS) is needed only after the Tax Engine split.</li>
+<li>Inbound webhooks authenticated by provider signature; outbound webhooks signed with HMAC per merchant.</li>
+<li>PCI SAQ A: card entry happens in the PSP component.</li>
+<li>Secrets in KMS; merchant API keys hashed; encryption at rest and in transit.</li>
+<li>Invoice PDFs in a private bucket, shared through short-lived pre-signed URLs.</li>
+<li>Back-office access through SSO + MFA, with an audit log.</li>
+</ul>
+
+<nav class="pager" aria-label="Pages"><a class="prev" href="../design/deployment.html"><span>Previous</span>Deployment Diagram</a><a class="next" href="../design/sequence-diagrams.html"><span>Next</span>Appendix A: Sequence Diagrams</a></nav>
+</main>
+</div>
+</body>
+</html>

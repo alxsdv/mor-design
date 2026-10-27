@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Event Storming &amp; Bounded Contexts · MoR System Design</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="topbar">
+  <a class="brand" href="../design.html">MoR System Design</a>
+  <a class="md-link" href="../design.md" title="The same document as Markdown">View as Markdown</a>
+</header>
+<div class="layout">
+<nav class="sidebar" aria-label="Document sections">
+<ol class="pages">
+<li><a href="../design.html"><span class="num">01</span>Overview</a></li>
+<li class="active"><a href="../design/bounded-contexts.html" aria-current="page"><span class="num">02</span>Event Storming &amp; Bounded Contexts</a><ol class="toc"><li><a href="#bounded-contexts-decisions">Bounded Contexts decisions</a></li></ol></li>
+<li><a href="../design/data-model.html"><span class="num">03</span>Conceptual Data Model</a></li>
+<li><a href="../design/communications.html"><span class="num">04</span>Communications Diagram</a></li>
+<li><a href="../design/architecture.html"><span class="num">05</span>Quality Attributes &amp; Architectural Style</a></li>
+<li><a href="../design/deployment.html"><span class="num">06</span>Deployment Diagram</a></li>
+<li><a href="../design/implementation.html"><span class="num">07</span>Implementation Details</a></li>
+<li class="group">Appendix</li><li><a href="../design/sequence-diagrams.html"><span class="num">A</span>Sequence Diagrams</a></li>
+</ol>
+</nav>
+<main class="content">
+<p class="eyebrow">MoR System Design</p>
+<h1 id="event-storming-bounded-contexts">Event Storming &amp; Bounded Contexts</h1>
+<p><a href="https://www.eventstorming.com/" target="_blank" rel="noopener">EventStorming</a> is a workshop format that helps explore complex business domains.<br>The goal of this workshop is to represent business processes in the system as a series of domain events.</p>
+<p>In the diagram below I&#39;ve tried to express the scenarios from the Requirements section:</p>
+<ul>
+<li>Calculating taxes for the sale and processing a payment</li>
+<li>Creating refunds for the completed payments</li>
+<li>Recording payments/refunds for the further tax returns</li>
+<li>Recording committed transactions as the ledger entries</li>
+<li>Merchant payouts and tax returns</li>
+<li>Issuing invoices to the buyers</li>
+</ul>
+<figure class="figure"><a href="../models-EventStorming.png" target="_blank" rel="noopener" title="Open full size"><img src="../models-EventStorming.png" alt="models-EventStorming.png" loading="lazy"></a><figcaption>models-EventStorming.png <a href="../models-EventStorming.png" target="_blank" rel="noopener">Open full size ↗&#xFE0E;</a></figcaption></figure>
+<p>The stickers are grouped into <strong>Bounded Contexts</strong>.<br>The division isn&#39;t final - it&#39;s just my attempt, based on what came to mind while working on the diagram.<br>A real SME may break the MoR system down differently.</p>
+<p>This diagram helps to:</p>
+<ol>
+<li>Represent an attempt to break down the system into Bounded Contexts,</li>
+<li>Show communications (essentially, coupling) between them, based on the business processes (system behavior, or <em>function</em>).</li>
+</ol>
+<h2 id="bounded-contexts-decisions">Bounded Contexts decisions<a class="anchor" href="#bounded-contexts-decisions" aria-label="Link to this section">#</a></h2>
+<ul>
+<li><p><strong>Tax Engine</strong> is extracted into a separate Bounded Context.</p>
+<ul>
+<li>In one of the first attempts to group the stickers, I placed the Tax Calculation stickers in the same group as the rest of the tax-related stickers (Tax Compliance).</li>
+<li>Later, I realized that these groups of stickers represent different business logic, involved in separate business processes (calculating tax for a sale vs. tax returns). They may also have different quality attributes (more on that later in the document): tax calculation is part of the checkout flow, while tax returns happen on a schedule. So I concluded that it makes sense to decouple them.</li>
+</ul>
+</li>
+<li><p><strong>Payments Orchestration</strong> context is responsible for purely orchestrating payments and refunds through the PSP.</p>
+<ul>
+<li>Its main purpose is to send requests to the PSP to charge or refund the Total Amount, previously calculated by the Tax Engine and provided directly in the request. Charging or refunding money through the PSP does not require the full breakdown of line items into net/tax/total amounts. This is why it is decoupled from the calculation logic and data structures.</li>
+<li>It also receives webhooks from the PSP and signals (publishes events) when a payment or refund has been processed on the PSP side. At that point, the money transfer can be considered a fulfilled fact, and other parts of the system can react to these events asynchronously.</li>
+</ul>
+</li>
+<li><p><strong>Tax Compliance</strong> Bounded Context is responsible for recording the fulfilled facts.</p>
+<ul>
+<li>Its main purpose is to consume the event from the <strong>Payments Orchestration</strong> context, and record that the corresponding <code>TaxCalculation</code> can be converted into a completed <code>TaxTransaction</code>.</li>
+<li>When a <code>TaxTransaction</code> is recorded, a corresponding business event is published. This event contains the full breakdown of line items, so other contexts (<strong>Ledger</strong> and <strong>Invoicing</strong>) can act upon it.</li>
+<li>At the end of the tax period, <code>TaxTransactions</code> are used to collect the Tax Return lines to be submitted to the authorities.</li>
+</ul>
+</li>
+<li><p><strong>Ledger</strong> listens to events from <strong>Tax Compliance</strong> for the reason described above: those events should have all of the needed data within the event payload.</p>
+<ul>
+<li>From a business perspective, it would be more correct for the <strong>Ledger</strong> to listen to events from <strong>Payments Orchestration</strong>. If at some point it becomes clear that those events carry enough data, we should switch to that.</li>
+<li>The ledger also records transactions for remitted taxes and merchant payouts.</li>
+</ul>
+</li>
+<li><p><strong>Merchants Payouts</strong> is responsible for the business process of paying out proceeds to merchants.</p>
+<ul>
+<li>In order to make a payout, we need to put the merchant&#39;s current available balance on hold, otherwise a concurrent transaction (a refund, for example) may get lost. To do this, there is a communication from the <strong>Merchants Payouts</strong> to the <strong>Ledger</strong> context - and this communication must be of a <em>strong</em> consistency type (meaning, it must be synchronous), which will put the available balance from the <code>MERCHANTS_PAYABLE</code> into the <code>MERCHANTS_PAYOUT_PENDING</code> ledger account.</li>
+</ul>
+</li>
+<li><p><strong>Invoicing</strong> is the Bounded Context responsible for generating and issuing the documentation for the Buyers.</p>
+<ul>
+<li>For example, document numbers must be sequential and traceable.</li>
+<li>The PDFs can be uploaded to a publicly available S3 bucket, or a similar object storage.</li>
+</ul>
+</li>
+</ul>
+
+<nav class="pager" aria-label="Pages"><a class="prev" href="../design.html"><span>Previous</span>Overview</a><a class="next" href="../design/data-model.html"><span>Next</span>Conceptual Data Model</a></nav>
+</main>
+</div>
+</body>
+</html>

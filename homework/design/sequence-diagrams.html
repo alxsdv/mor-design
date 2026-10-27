@@ -1,0 +1,216 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sequence Diagrams · MoR System Design</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="topbar">
+  <a class="brand" href="../design.html">MoR System Design</a>
+  <a class="md-link" href="../design.md" title="The same document as Markdown">View as Markdown</a>
+</header>
+<div class="layout">
+<nav class="sidebar" aria-label="Document sections">
+<ol class="pages">
+<li><a href="../design.html"><span class="num">01</span>Overview</a></li>
+<li><a href="../design/bounded-contexts.html"><span class="num">02</span>Event Storming &amp; Bounded Contexts</a></li>
+<li><a href="../design/data-model.html"><span class="num">03</span>Conceptual Data Model</a></li>
+<li><a href="../design/communications.html"><span class="num">04</span>Communications Diagram</a></li>
+<li><a href="../design/architecture.html"><span class="num">05</span>Quality Attributes &amp; Architectural Style</a></li>
+<li><a href="../design/deployment.html"><span class="num">06</span>Deployment Diagram</a></li>
+<li><a href="../design/implementation.html"><span class="num">07</span>Implementation Details</a></li>
+<li class="group">Appendix</li><li class="active"><a href="../design/sequence-diagrams.html" aria-current="page"><span class="num">A</span>Sequence Diagrams</a><ol class="toc"><li><a href="#scenario-1-eu-buyer-purchases-the-yoga-subscription">Scenario 1: EU Buyer purchases the yoga subscription</a></li><li><a href="#scenario-2-on-subscription-renewal-or-at-another-billing-event-the-recurring-fee-must-be-charged-to-the-buyer">Scenario 2: On subscription renewal (or at another billing event) the Recurring Fee must be charged to the Buyer</a></li><li><a href="#scenario-3-merchant-initiated-refund">Scenario 3: Merchant-initiated refund</a></li><li><a href="#scenario-4-payout-to-the-merchant">Scenario 4: Payout to the Merchant</a></li><li><a href="#scenario-5-file-and-remit-eu-taxes-for-the-quarter">Scenario 5: File and remit EU taxes for the quarter</a></li></ol></li>
+</ol>
+</nav>
+<main class="content">
+<p class="eyebrow">Appendix A</p>
+<h1 id="sequence-diagrams">Sequence Diagrams</h1>
+<p>The diagrams were created to represent the scenarios mentioned in the <a href="../design.html#requirements">Requirements</a> section.<br>The goal for these diagrams was to understand the process <em>in general</em>, without going too much into details.<br>Therefore, <em>internal</em> components of the MoR platform are (mostly) not represented there.</p>
+<h2 id="scenario-1-eu-buyer-purchases-the-yoga-subscription">Scenario 1: EU Buyer purchases the yoga subscription<a class="anchor" href="#scenario-1-eu-buyer-purchases-the-yoga-subscription" aria-label="Link to this section">#</a></h2>
+<ul>
+<li>The Buyer goes through the checkout process at Merchant&#39;s website</li>
+<li>MoR is responsible for calculating taxes for the Buyer&#39;s purchase</li>
+<li>MoR is responsible for collecting money from the Buyer</li>
+<li>The settled payment is registered in the ledger</li>
+<li>The same settled payment is stored as a taxable transaction, for the tax return</li>
+<li>MoR is responsible for issuing the invoice for the Buyer&#39;s purchase</li>
+</ul>
+<figure class="figure figure--seq"><a href="sequence-1.svg" target="_blank" rel="noopener" title="Open full size"><img src="sequence-1.svg" alt="Sequence diagram 1" loading="lazy"></a><figcaption><a href="sequence-1.svg" target="_blank" rel="noopener">Open full size ↗&#xFE0E;</a></figcaption><details class="source"><summary>Mermaid source</summary><pre><code>sequenceDiagram
+    actor Customer
+    participant LazyStretch
+    participant MoR
+    participant PSP
+
+    Customer-&gt;&gt;LazyStretch: Starts purchase
+    LazyStretch-&gt;&gt;MoR: POST /tax/calculations
+    MoR--&gt;&gt;LazyStretch: {calculationId, Total, TaxTotal}
+    LazyStretch--&gt;&gt;Customer: Show cart with tax total
+    Customer-&gt;&gt;LazyStretch: Pay
+    LazyStretch-&gt;&gt;MoR: create payment intent (calculationId, merchantReference, savePaymentMethod)
+    MoR-&gt;&gt;PSP: create payment intent (save card for off-session use)
+    PSP--&gt;&gt;MoR: payment intent, client_secret
+    MoR--&gt;&gt;LazyStretch: client_secret
+    LazyStretch--&gt;&gt;Customer: Payment form w/ Payment total
+    Customer-&gt;&gt;PSP: Confirm payment
+    PSP--&gt;&gt;Customer: Payment confirmed
+
+    PSP--)MoR: payment succeeded webhook
+    MoR-&gt;&gt;MoR: Complete the payment
+    MoR-&gt;&gt;MoR: Store the taxable transaction
+    MoR-&gt;&gt;MoR: Record payment in the ledger (tax payable, merchant payable, fee)
+    
+    MoR--)LazyStretch: payment.captured (paymentId, merchantReference, paymentMethodToken)
+    LazyStretch-&gt;&gt;LazyStretch: Create subscription, store payment method token
+    LazyStretch--&gt;&gt;Customer: Access granted
+
+    MoR-&gt;&gt;MoR: Issue invoice
+    MoR--)LazyStretch: invoice.issued (invoiceId, URL)
+    LazyStretch-&gt;&gt;Customer: Invoice (email / account page)</code></pre></details></figure>
+<h2 id="scenario-2-on-subscription-renewal-or-at-another-billing-event-the-recurring-fee-must-be-charged-to-the-buyer">Scenario 2: On subscription renewal (or at another billing event) the Recurring Fee must be charged to the Buyer<a class="anchor" href="#scenario-2-on-subscription-renewal-or-at-another-billing-event-the-recurring-fee-must-be-charged-to-the-buyer" aria-label="Link to this section">#</a></h2>
+<ul>
+<li>The Merchant manages the subscription and its billing cycles</li>
+<li>The Merchant initiates charging the recurring fee for the subscription</li>
+<li>MoR is responsible for calculating taxes and collecting money</li>
+<li>The settled payment is registered in the ledger</li>
+<li>The same settled payment is stored as a taxable transaction, for the tax return</li>
+<li>MoR is responsible for issuing the invoice</li>
+</ul>
+<figure class="figure figure--seq"><a href="sequence-2.svg" target="_blank" rel="noopener" title="Open full size"><img src="sequence-2.svg" alt="Sequence diagram 2" loading="lazy"></a><figcaption><a href="sequence-2.svg" target="_blank" rel="noopener">Open full size ↗&#xFE0E;</a></figcaption><details class="source"><summary>Mermaid source</summary><pre><code>sequenceDiagram
+
+    actor Customer
+    participant LazyStretch
+    participant MoR
+    participant PSP
+    
+    Note over Customer,PSP: The subscription's billing date passed
+
+    LazyStretch-&gt;&gt;LazyStretch: Select a subscription for billing &lt;br&gt;{customer, recurring fee, paymentMethodToken}
+
+    LazyStretch-&gt;&gt;MoR: calculate taxes
+    MoR--&gt;&gt;LazyStretch: {calculationId, Total, TaxTotal}
+
+    LazyStretch-&gt;&gt;MoR: create payment intent (calculationId, merchantReference, paymentMethodToken)
+    MoR-&gt;&gt;PSP: create payment intent (merchant-initiated)
+    PSP--&gt;&gt;MoR: payment intent
+
+    PSP--)MoR: payment succeeded webhook
+    MoR-&gt;&gt;MoR: complete the payment
+    MoR-&gt;&gt;MoR: store the taxable transaction
+    MoR-&gt;&gt;MoR: record payment in the ledger (tax payable, merchant payable, fee)
+    
+    MoR--)LazyStretch: payment.captured (paymentId, merchantReference)
+    LazyStretch-&gt;&gt;LazyStretch: Renew subscription
+
+    MoR-&gt;&gt;MoR: issue invoice
+    MoR--)LazyStretch: invoice.issued (invoiceId, URL)
+    LazyStretch-&gt;&gt;Customer: Invoice (email / account page)</code></pre></details></figure>
+<h2 id="scenario-3-merchant-initiated-refund">Scenario 3: Merchant-initiated refund<a class="anchor" href="#scenario-3-merchant-initiated-refund" aria-label="Link to this section">#</a></h2>
+<ul>
+<li>The Merchant can find previously completed transactions and choose one for refund</li>
+<li>The Merchant creates the refund request</li>
+<li>MoR is responsible for processing the refund through the PSP</li>
+<li>The processed refund is registered in the ledger</li>
+<li>The same refund is stored as a tax transaction, for the tax return</li>
+<li>MoR is responsible for issuing the refund invoice</li>
+</ul>
+<figure class="figure figure--seq"><a href="sequence-3.svg" target="_blank" rel="noopener" title="Open full size"><img src="sequence-3.svg" alt="Sequence diagram 3" loading="lazy"></a><figcaption><a href="sequence-3.svg" target="_blank" rel="noopener">Open full size ↗&#xFE0E;</a></figcaption><details class="source"><summary>Mermaid source</summary><pre><code>sequenceDiagram
+
+    actor Customer
+    participant LazyStretch
+    participant MoR
+    participant PSP
+
+    Customer-&gt;&gt;LazyStretch: Ask for a refund
+    
+    LazyStretch-&gt;&gt;MoR: Get previous transaction (merchantReference)
+    MoR--&gt;&gt;LazyStretch: {transactionId, lineItems[]}
+
+    LazyStretch-&gt;&gt;MoR: Calculate refund
+    MoR--&gt;&gt;LazyStretch: {calculationId, Total, TaxTotal}
+
+    LazyStretch-&gt;&gt;MoR: create refund (calculationId, refundAmount, merchantReference)
+    MoR-&gt;&gt;PSP: create refund (initial payment intent)
+    PSP--&gt;&gt;MoR: refund
+
+    PSP--)MoR: refund completed webhook
+    MoR-&gt;&gt;MoR: Complete the refund
+    MoR-&gt;&gt;MoR: Store the taxable transaction
+    MoR-&gt;&gt;MoR: Record refund in the ledger (tax payable, merchant payable, fee)
+    
+    MoR--)LazyStretch: refund.completed (refundId, paymentId, merchantReference)
+
+    MoR-&gt;&gt;MoR: Issue refund invoice
+    MoR--)LazyStretch: invoice.issued (invoiceId, URL)
+    LazyStretch-&gt;&gt;Customer: Refund Invoice (email / account page)</code></pre></details></figure>
+<h2 id="scenario-4-payout-to-the-merchant">Scenario 4: Payout to the Merchant<a class="anchor" href="#scenario-4-payout-to-the-merchant" aria-label="Link to this section">#</a></h2>
+<ul>
+<li>MoR obtains the Merchant&#39;s balance from the ledger</li>
+<li>Proceeds are paid out to the Merchant&#39;s USD account through our Wise account</li>
+<li>Successful payout is recorded in the ledger, updating the Merchant&#39;s balance</li>
+</ul>
+<figure class="figure figure--seq"><a href="sequence-4.svg" target="_blank" rel="noopener" title="Open full size"><img src="sequence-4.svg" alt="Sequence diagram 4" loading="lazy"></a><figcaption><a href="sequence-4.svg" target="_blank" rel="noopener">Open full size ↗&#xFE0E;</a></figcaption><details class="source"><summary>Mermaid source</summary><pre><code>sequenceDiagram
+
+    participant LazyStretch
+    participant MoR
+    participant Wise
+
+    Note over MoR,Wise: Beforehand: PSP settles collected funds to MoR Wise account.&lt;br&gt;Merchant's USD account registered as Wise recipient at onboarding
+    Note over LazyStretch,Wise: The Merchant's statement day
+
+    MoR-&gt;&gt;MoR: Reserve settled available balance&lt;br&gt;(Merchant payable → Payout in transit)
+    MoR-&gt;&gt;Wise: Create quote (EUR→USD, amount)
+    Wise--&gt;&gt;MoR: quoteId, rate, fee, expiry
+    MoR-&gt;&gt;Wise: Create transfer (quoteId, recipientId, customerTransactionId)
+    Wise--&gt;&gt;MoR: transferId
+    MoR-&gt;&gt;Wise: Fund transfer (from EUR balance)
+    Wise--)MoR: transfer state-change webhook (transferId)
+
+    alt outgoing_payment_sent
+        MoR-&gt;&gt;MoR: Record payout (Payout in transit → Wise cash, Wise fee / FX)
+        MoR-&gt;&gt;LazyStretch: Payout statement (email/pdf)
+    else cancelled / bounced_back / funds_refunded
+        MoR-&gt;&gt;MoR: Release reservation (Payout in transit → Merchant payable)
+    end</code></pre></details></figure>
+<h2 id="scenario-5-file-and-remit-eu-taxes-for-the-quarter">Scenario 5: File and remit EU taxes for the quarter<a class="anchor" href="#scenario-5-file-and-remit-eu-taxes-for-the-quarter" aria-label="Link to this section">#</a></h2>
+<ul>
+<li>At period end, taxable transactions are added up per country and optionally rated, to prepare the tax return</li>
+<li>MoR is responsible for filing EU taxes with the authorities</li>
+<li>Taxes are remitted from the MoR account, and the remittance is recorded in the ledger</li>
+</ul>
+<figure class="figure figure--seq"><a href="sequence-5.svg" target="_blank" rel="noopener" title="Open full size"><img src="sequence-5.svg" alt="Sequence diagram 5" loading="lazy"></a><figcaption><a href="sequence-5.svg" target="_blank" rel="noopener">Open full size ↗&#xFE0E;</a></figcaption><details class="source"><summary>Mermaid source</summary><pre><code>sequenceDiagram
+    
+    participant Tax as MoR: Tax Compliance
+    participant Ledger as MoR: Ledger
+    participant Wise as MoR account (Wise)
+    actor Ops as MoR tax team
+    participant NL as NL tax authority (OSS)
+
+    Note over Tax,NL: Quarter ended. Return and payment due by the end of the following month
+
+    Tax-&gt;&gt;Tax: Close period by tax point date&lt;br&gt;(late events go to a later return as corrections)
+    Tax-&gt;&gt;Tax: Aggregate per member state and rate, excluding NL buyers&lt;br&gt;(non-EUR converted at ECB rate of the period's last day)
+    Tax-&gt;&gt;Ops: Draft OSS return (incl. corrections to earlier periods)
+    Ops-&gt;&gt;NL: Submit OSS return (portal)
+    NL--&gt;&gt;Ops: Return accepted, payment reference
+    Ops-&gt;&gt;Tax: Confirm submission (payment reference)
+
+    Tax-&gt;&gt;Wise: Create transfer EUR (amount, payment reference, customerTransactionId)
+    Tax-&gt;&gt;Wise: Fund transfer
+    Wise--)Tax: transfer state-change webhook
+
+    alt outgoing_payment_sent
+        Tax-)Ledger: Record Tax Remitted (period, amount)
+        Ledger-&gt;&gt;Ledger: Tax payable → Cr Wise cash&lt;br&gt;difference → FX gain/loss
+    else failed / bounced_back
+        Tax-&gt;&gt;Ops: Alert: payment failed, retry before deadline
+    end
+
+    Note over Tax,NL: Sales to NL buyers are filed separately on the domestic NL VAT return</code></pre></details></figure>
+
+<nav class="pager" aria-label="Pages"><a class="prev" href="../design/implementation.html"><span>Previous</span>Implementation Details</a><span></span></nav>
+</main>
+</div>
+</body>
+</html>

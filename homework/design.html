@@ -1,0 +1,112 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MoR System Design</title>
+<link rel="stylesheet" href="design/style.css">
+</head>
+<body>
+<header class="topbar">
+  <a class="brand" href="design.html">MoR System Design</a>
+  <a class="md-link" href="design.md" title="The same document as Markdown">View as Markdown</a>
+</header>
+<div class="layout">
+<nav class="sidebar" aria-label="Document sections">
+<ol class="pages">
+<li class="active"><a href="design.html" aria-current="page"><span class="num">01</span>Overview</a><ol class="toc"><li><a href="#merchant">👥 Merchant</a></li><li><a href="#task">✍️ Task</a></li><li><a href="#requirements">Requirements</a></li></ol></li>
+<li><a href="design/bounded-contexts.html"><span class="num">02</span>Event Storming &amp; Bounded Contexts</a></li>
+<li><a href="design/data-model.html"><span class="num">03</span>Conceptual Data Model</a></li>
+<li><a href="design/communications.html"><span class="num">04</span>Communications Diagram</a></li>
+<li><a href="design/architecture.html"><span class="num">05</span>Quality Attributes &amp; Architectural Style</a></li>
+<li><a href="design/deployment.html"><span class="num">06</span>Deployment Diagram</a></li>
+<li><a href="design/implementation.html"><span class="num">07</span>Implementation Details</a></li>
+<li class="group">Appendix</li><li><a href="design/sequence-diagrams.html"><span class="num">A</span>Sequence Diagrams</a></li>
+</ol>
+</nav>
+<main class="content">
+<h1 id="mor-system-design">MoR System Design</h1>
+<h2 id="merchant">👥 Merchant<a class="anchor" href="#merchant" aria-label="Link to this section">#</a></h2>
+<p>&quot;Lazy Stretch&quot; from 🇺🇸 </p>
+<ul>
+<li>SaaS business selling yoga subscriptions</li>
+<li>Already has a global website and manages users&#39; subscriptions</li>
+<li>Wants to sell in the EU without worrying about compliance or payment processing</li>
+</ul>
+<h2 id="task">✍️ Task<a class="anchor" href="#task" aria-label="Link to this section">#</a></h2>
+<p>Design a system that supports the merchant through our MoR infrastructure.  </p>
+<p>We have:</p>
+<ul>
+<li>Legal entity in Netherlands</li>
+<li>PSP account</li>
+<li>Wise account</li>
+</ul>
+<h2 id="requirements">Requirements<a class="anchor" href="#requirements" aria-label="Link to this section">#</a></h2>
+<h3 id="main-scenarios-that-we-must-support">Main scenarios that we must support<a class="anchor" href="#main-scenarios-that-we-must-support" aria-label="Link to this section">#</a></h3>
+<ol>
+<li><p>EU Buyer purchases the yoga subscription from the Lazy Stretch website.</p>
+<ul>
+<li>The Buyer goes through the checkout process at Merchant&#39;s website</li>
+<li>MoR is responsible for calculating taxes for the Buyer&#39;s purchase</li>
+<li>MoR is responsible for collecting money from the Buyer</li>
+<li>The settled payment is registered in the ledger</li>
+<li>The same settled payment is stored as a taxable transaction, for the tax return</li>
+<li>MoR is responsible for issuing the invoice for the Buyer&#39;s purchase</li>
+</ul>
+</li>
+<li><p>On subscription renewal (or at another billing event) the Recurring Fee must be charged to the Buyer.</p>
+<ul>
+<li>The Merchant manages the subscription and its billing cycles</li>
+<li>The Merchant initiates charging the recurring fee for the subscription</li>
+<li>MoR is responsible for calculating taxes and collecting money</li>
+<li>The settled payment is registered in the ledger</li>
+<li>The same settled payment is stored as a taxable transaction, for the tax return</li>
+<li>MoR is responsible for issuing the invoice</li>
+</ul>
+</li>
+<li><p>Merchant-initiated refund</p>
+<ul>
+<li>The Merchant can find previously completed transactions and choose one for refund</li>
+<li>The Merchant creates the refund request</li>
+<li>MoR is responsible for processing the refund through the PSP</li>
+<li>The processed refund is registered in the ledger</li>
+<li>The same refund is stored as a tax transaction, for the tax return</li>
+<li>MoR is responsible for issuing the refund invoice</li>
+</ul>
+</li>
+<li><p>On the Merchant&#39;s statement day, the proceeds must be paid out to the Merchant</p>
+<ul>
+<li>MoR obtains the Merchant&#39;s balance from the ledger</li>
+<li>Proceeds are paid out to the Merchant&#39;s USD account through our Wise account</li>
+<li>Successful payout is recorded in the ledger, updating the Merchant&#39;s balance</li>
+</ul>
+</li>
+<li><p>After the tax period ends, MoR must file and remit the taxes for the sales within that period</p>
+<ul>
+<li>At period end, taxable transactions are added up per country and optionally rated, to prepare the tax return</li>
+<li>MoR is responsible for filing EU taxes with the authorities</li>
+<li>Taxes are remitted from the MoR account, and the remittance is recorded in the ledger</li>
+</ul>
+</li>
+</ol>
+<h3 id="context-implications">Context implications<a class="anchor" href="#context-implications" aria-label="Link to this section">#</a></h3>
+<ol>
+<li><p>According to the EU legislation, the MoR platform for digital sales in the EU is the supplier for VAT.<br> (Implementing Regulation 282/2011, Art. 9a, VAT Directive 2006/112/EC, Art. 28 and Art. 14)</p>
+</li>
+<li><p>The MoR platform owes VAT in each customer&#39;s member state. (VAT Directive Art. 58)<br> VAT rates vary across EU member states (19% in Germany, 20% in France, 24% in Greece).<br> However, VAT Directive Art. 358-369 let the MoR file and pay all EU VAT through a single member state instead of registering in each one (OSS scheme).</p>
+</li>
+<li><p>Some EU member states have a national currency other than EUR (Czechia, Denmark, Hungary, Poland, Romania, Sweden).<br> This means that we may (or may not) collect payments from Buyers in different currencies, but we need to pay out to the Merchant in USD.</p>
+</li>
+</ol>
+<h3 id="out-of-scope-assumptions">Out of scope - assumptions<a class="anchor" href="#out-of-scope-assumptions" aria-label="Link to this section">#</a></h3>
+<ul>
+<li>&quot;Lazy Stretch&quot; already has a global website - let&#39;s assume that they already have the checkout page there.</li>
+<li>&quot;Lazy Stretch&quot; manages users&#39; subscriptions - therefore, our MoR system does not do it, we can only react to certain events / API calls.</li>
+<li>Catalog of items with unit prices, discounts are out of scope. It is expected that we get this information with the requests.</li>
+</ul>
+
+<nav class="pager" aria-label="Pages"><span></span><a class="next" href="design/bounded-contexts.html"><span>Next</span>Event Storming &amp; Bounded Contexts</a></nav>
+</main>
+</div>
+</body>
+</html>
