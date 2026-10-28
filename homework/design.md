@@ -224,14 +224,28 @@ If the modelled load profile is close to reality, then:
 
 ## Implementation Details
 
-### Event delivery (no broker)
+### Event delivery (RabbitMQ)
 
 - The event is written to the module's `outbox` table in the same DB transaction as the state change.
-- A singleton outbox relay (DB lock) delivers events in-process to subscribers; each handler runs in its own transaction.
-- The relay, retries and dead-letter handling come from a proven library (framework outbox support or a Postgres-backed queue), not hand-written code.
-- At-least-once delivery, ordered per aggregate (payment ID, payout ID); retries with backoff, then a dead-letter table and an alert.
+- A singleton outbox relay (DB lock) publishes the events to RabbitMQ with publisher confirms; a row is marked sent only after the broker confirms it.
+- One topic exchange per publishing module; each consuming module has its own durable queue bound by event type, so modules don't share queues.
+- Consumers dedupe through the module's `inbox` table; each handler runs in its own transaction and acks the message after commit.
+- At-least-once delivery, ordered per aggregate (payment ID, payout ID): a single active consumer per queue, and state-transition guards drop late events.
+- Retries with backoff through retry queues (message TTL + dead-letter exchange), then a dead-letter queue and an alert.
 - Events carry an event ID, a schema version and a correlation ID; fields are only added, never changed.
-- After a split, the relay publishes to Kafka/RabbitMQ instead; the outbox, inbox and event contracts stay the same.
+- Exchanges, queues, bindings and policies are declared in code and versioned with the app, so the topology is reviewable and reproducible.
+- After a split, the extracted service connects to the same broker; the outbox, inbox, exchanges and event contracts stay the same.
+
+Why RabbitMQ:
+- Industry standard and production-grade.
+- Widely adopted, so it is easier to hire engineers who have run it than for niche libraries.
+- Easy to maintain: exchanges and queues are explicit, and the management UI shows queue depth, unacked and dead-lettered messages when something goes wrong.
+- The infrastructure is ready for splitting the monolith into services when it is needed.
+
+Why not Kafka:
+- Built for high-throughput streaming and replay; our load (~10 events/s at peak) doesn't need it.
+
+Alternative: if the team already knows one well, use the framework's own message bus or a Postgres-backed queue instead. That means one less piece of infrastructure, and the outbox/inbox design stays the same.
 
 ### Idempotency
 

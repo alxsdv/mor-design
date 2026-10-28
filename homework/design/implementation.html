@@ -20,21 +20,37 @@
 <li><a href="../design/communications.html"><span class="num">04</span>Communications Diagram</a></li>
 <li><a href="../design/architecture.html"><span class="num">05</span>Quality Attributes &amp; Architectural Style</a></li>
 <li><a href="../design/deployment.html"><span class="num">06</span>Deployment Diagram</a></li>
-<li class="active"><a href="../design/implementation.html" aria-current="page"><span class="num">07</span>Implementation Details</a><ol class="toc"><li><a href="#event-delivery-no-broker">Event delivery (no broker)</a></li><li><a href="#idempotency">Idempotency</a></li><li><a href="#ledger-internals">Ledger internals</a></li><li><a href="#data-ownership-and-retention">Data ownership and retention</a></li><li><a href="#security">Security</a></li></ol></li>
+<li class="active"><a href="../design/implementation.html" aria-current="page"><span class="num">07</span>Implementation Details</a><ol class="toc"><li><a href="#event-delivery-rabbitmq">Event delivery (RabbitMQ)</a></li><li><a href="#idempotency">Idempotency</a></li><li><a href="#ledger-internals">Ledger internals</a></li><li><a href="#data-ownership-and-retention">Data ownership and retention</a></li><li><a href="#security">Security</a></li></ol></li>
 <li class="group">Appendix</li><li><a href="../design/sequence-diagrams.html"><span class="num">A</span>Sequence Diagrams</a></li>
 </ol>
 </nav>
 <main class="content">
 <h1 id="implementation-details">Implementation Details</h1>
-<h2 id="event-delivery-no-broker">Event delivery (no broker)<a class="anchor" href="#event-delivery-no-broker" aria-label="Link to this section">#</a></h2>
+<h2 id="event-delivery-rabbitmq">Event delivery (RabbitMQ)<a class="anchor" href="#event-delivery-rabbitmq" aria-label="Link to this section">#</a></h2>
 <ul>
-<li>The event is written to the module&#39;s <code>outbox</code> table in the same DB transaction as the state change.</li>
-<li>A singleton outbox relay (DB lock) delivers events in-process to subscribers; each handler runs in its own transaction.</li>
-<li>The relay, retries and dead-letter handling come from a proven library (framework outbox support or a Postgres-backed queue), not hand-written code.</li>
-<li>At-least-once delivery, ordered per aggregate (payment ID, payout ID); retries with backoff, then a dead-letter table and an alert.</li>
+<li>The event is written to the module&#x27;s <code>outbox</code> table in the same DB transaction as the state change.</li>
+<li>A singleton outbox relay (DB lock) publishes the events to RabbitMQ with publisher confirms; a row is marked sent only after the broker confirms it.</li>
+<li>One topic exchange per publishing module; each consuming module has its own durable queue bound by event type, so modules don&#x27;t share queues.</li>
+<li>Consumers dedupe through the module&#x27;s <code>inbox</code> table; each handler runs in its own transaction and acks the message after commit.</li>
+<li>At-least-once delivery, ordered per aggregate (payment ID, payout ID): a single active consumer per queue, and state-transition guards drop late events.</li>
+<li>Retries with backoff through retry queues (message TTL + dead-letter exchange), then a dead-letter queue and an alert.</li>
 <li>Events carry an event ID, a schema version and a correlation ID; fields are only added, never changed.</li>
-<li>After a split, the relay publishes to Kafka/RabbitMQ instead; the outbox, inbox and event contracts stay the same.</li>
+<li>Exchanges, queues, bindings and policies are declared in code and versioned with the app, so the topology is reviewable and reproducible.</li>
+<li>After a split, the extracted service connects to the same broker; the outbox, inbox, exchanges and event contracts stay the same.</li>
 </ul>
+<p>Why RabbitMQ:</p>
+<ul>
+<li>Industry standard and production-grade.</li>
+<li>Widely adopted, so it is easier to hire engineers who have run it than for niche libraries.</li>
+<li>Easy to maintain: exchanges and queues are explicit, and the management UI shows queue depth, unacked and dead-lettered messages when something goes wrong.</li>
+<li>The infrastructure is ready for splitting the monolith into services when it is needed.</li>
+</ul>
+<p>Why not Kafka:</p>
+<ul>
+<li>Built for high-throughput streaming and replay; our load (~10 events/s at peak) doesn&#x27;t need it.</li>
+<li>Heavier to run and tune (partitions, consumer groups, retention), and it has no built-in per-message retry or dead-lettering; we&#x27;d have to build them.</li>
+</ul>
+<p>Alternative: if the team already knows one well, use the framework&#x27;s own message bus or a Postgres-backed queue instead. That means one less piece of infrastructure, and the outbox/inbox design stays the same.</p>
 <h2 id="idempotency">Idempotency<a class="anchor" href="#idempotency" aria-label="Link to this section">#</a></h2>
 <ul>
 <li>Merchant API: <code>Idempotency-Key</code> per merchant (stored response + request hash, kept for 24 h).</li>
